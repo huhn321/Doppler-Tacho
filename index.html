@@ -41,7 +41,7 @@
 body {
   margin: 0;
   background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
-  padding-block: 20px 40px;
+  padding-block: 20px calc(112px + env(safe-area-inset-bottom, 0px));
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
@@ -110,6 +110,23 @@ h1 { font-family: var(--font-num); font-weight: 600; font-size: 34px; line-heigh
 .notes { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
 .notes p { margin: 0; max-width: 68ch; }
 .notes code { font-family: var(--font-mono); color: var(--ink); font-size: 13px; overflow-wrap: anywhere; }
+.dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; pointer-events: none;
+  padding: 28px max(16px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  background: linear-gradient(to top, var(--bg) 60%, transparent); }
+.dock-inner { max-width: 780px; margin: 0 auto; }
+.micbar {
+  pointer-events: auto; position: relative; width: 100%; height: 76px; border: 0; border-radius: 38px; cursor: pointer;
+  background: var(--ink); color: var(--bg); display: flex; align-items: center; justify-content: center; gap: 14px;
+  font: 600 17px var(--font-body); box-shadow: 0 4px 18px rgba(0, 0, 0, .22);
+  touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+.micbar svg { width: 28px; height: 28px; flex: none; pointer-events: none; }
+.micbar span { pointer-events: none; font-variant-numeric: tabular-nums; }
+.micbar.live { background: var(--live); color: #fff; }
+.micbar.live::after { content: ""; position: absolute; inset: -5px; border-radius: 43px; border: 2px solid var(--live); animation: barring 1.1s ease-out infinite; }
+@keyframes barring { from { opacity: .9; } to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .micbar.live::after { animation: none; opacity: .5; } }
+.micbar:focus-visible { outline: 3px solid var(--appr); outline-offset: 3px; }
 @media (max-width: 560px) {
   .readout { grid-template-columns: minmax(0, 1fr); }
   .speed .big { font-size: 72px; }
@@ -187,6 +204,15 @@ h1 { font-family: var(--font-num); font-weight: 600; font-size: 34px; line-heigh
     <p>Die Auswertung läuft komplett in diesem Fenster, nichts wird hochgeladen.</p>
   </section>
 </main>
+
+<div class="dock">
+  <div class="dock-inner">
+    <button id="micBar" class="micbar" type="button" aria-label="Halten zum Aufnehmen, Loslassen wertet aus">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+      <span id="barLabel">Halten zum Aufnehmen</span>
+    </button>
+  </div>
+</div>
 
 <script>
 (function () {
@@ -461,10 +487,11 @@ h1 { font-family: var(--font-num); font-weight: 600; font-size: 34px; line-heigh
   $("file").addEventListener("change", onFile); $("cap").addEventListener("change", onFile);
 
   /* ---------- Mikrofon: halten = aufnehmen, loslassen = auswerten ---------- */
-  var mic = $("mic"), stream = null, recorder = null, chunks = [], holding = false, recStart = 0, timerId = 0;
-  function micFail(msg) { $("micFailText").textContent = msg; $("micFail").hidden = false; }
+  var mics = [$("mic"), $("micBar")], stream = null, recorder = null, chunks = [], holding = false, recStart = 0, timerId = 0;
+  function micFail(msg) { $("micFailText").textContent = msg; $("micFail").hidden = false; window.scrollTo({ top: 0, behavior: "smooth" }); }
   function setMicUI(live) {
-    mic.classList.toggle("live", live);
+    mics.forEach(function (m) { m.classList.toggle("live", live); });
+    $("barLabel").textContent = live ? "Aufnahme läuft" : "Halten zum Aufnehmen";
     $("micLabel").textContent = live ? "Aufnahme läuft" : "Halten zum Aufnehmen";
     $("micHint").textContent = live ? "Loslassen wertet aus" : "Loslassen wertet sofort aus";
   }
@@ -482,31 +509,33 @@ h1 { font-family: var(--font-num); font-weight: 600; font-size: 34px; line-heigh
       var secs = (performance.now() - recStart) / 1000;
       if (secs < 1.5) { setStatus("Aufnahme zu kurz. Halte die Taste, bis das Objekt vorbei ist."); return; }
       var blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
-      blob.arrayBuffer().then(function (ab) { return loadBuffer(ab, "Aufnahme"); });
+      blob.arrayBuffer().then(function (ab) { return loadBuffer(ab, "Aufnahme"); }).then(function () { var r = document.querySelector(".readout"); if (r) r.scrollIntoView({ behavior: "smooth", block: "start" }); });
     };
     recorder.start(100); recStart = performance.now(); setMicUI(true);
     var tm = document.createElement("span"); tm.className = "timer";
-    timerId = setInterval(function () { var s = (performance.now() - recStart) / 1000; $("micHint").textContent = "Loslassen wertet aus · " + fmt(s, 1) + " s"; }, 100);
+    timerId = setInterval(function () { var s = (performance.now() - recStart) / 1000; $("micHint").textContent = "Loslassen wertet aus · " + fmt(s, 1) + " s"; $("barLabel").textContent = "Aufnahme läuft · " + fmt(s, 1) + " s"; }, 100);
   }
   function stopRec() { holding = false; if (recorder && recorder.state === "recording") recorder.stop(); }
-  mic.addEventListener("contextmenu", function (e) { e.preventDefault(); });
-  mic.addEventListener("pointerdown", async function (e) {
-    e.preventDefault(); holding = true;
-    try { mic.setPointerCapture(e.pointerId); } catch (x) {}
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) { holding = false; micFail("Aufnahme per Mikrofon ist hier nicht möglich."); return; }
-    if (stream && stream.active) { startRec(); return; }
-    var t0 = performance.now();
-    try { await getStream(); } catch (err) {
-      holding = false;
-      micFail("Das Mikrofon ist in dieser Ansicht gesperrt oder nicht erlaubt. Du kannst stattdessen die Aufnahme-App deines Geräts öffnen und das Ergebnis direkt auswerten.");
-      return;
-    }
-    if (holding && performance.now() - t0 < 600) startRec();
-    else setStatus("Mikrofon bereit. Taste halten und aufnehmen.");
+  mics.forEach(function (m) {
+    m.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+    m.addEventListener("pointerdown", async function (e) {
+      e.preventDefault(); holding = true;
+      try { m.setPointerCapture(e.pointerId); } catch (x) {}
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) { holding = false; micFail("Aufnahme per Mikrofon ist hier nicht möglich."); return; }
+      if (stream && stream.active) { startRec(); return; }
+      var t0 = performance.now();
+      try { await getStream(); } catch (err) {
+        holding = false;
+        micFail("Das Mikrofon ist in dieser Ansicht gesperrt oder nicht erlaubt. Du kannst stattdessen die Aufnahme-App deines Geräts öffnen und das Ergebnis direkt auswerten.");
+        return;
+      }
+      if (holding && performance.now() - t0 < 600) startRec();
+      else setStatus("Mikrofon bereit. Taste halten und aufnehmen.");
+    });
+    ["pointerup", "pointercancel", "lostpointercapture"].forEach(function (n) { m.addEventListener(n, stopRec); });
+    m.addEventListener("keydown", function (e) { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); m.dispatchEvent(new PointerEvent("pointerdown", { pointerId: 1 })); } });
+    m.addEventListener("keyup", function (e) { if (e.key === " " || e.key === "Enter") stopRec(); });
   });
-  ["pointerup", "pointercancel", "lostpointercapture"].forEach(function (n) { mic.addEventListener(n, stopRec); });
-  mic.addEventListener("keydown", function (e) { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); mic.dispatchEvent(new PointerEvent("pointerdown", { pointerId: 1 })); } });
-  mic.addEventListener("keyup", function (e) { if (e.key === " " || e.key === "Enter") stopRec(); });
   function releaseMic() { if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; } }
   document.addEventListener("visibilitychange", function () { if (document.hidden) releaseMic(); });
   window.addEventListener("pagehide", releaseMic);
