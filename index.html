@@ -49,7 +49,9 @@ body {
 h1 { font-family: var(--font-num); font-weight: 600; font-size: 34px; line-height: 1; margin: 0; letter-spacing: .01em; text-wrap: balance; }
 .lede { margin: 4px 0 0; color: var(--muted); }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
-.inputs { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; }
+.inputs { display: flex; flex-direction: column; gap: 12px; }
+.inputs-row { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; }
+.mic-hint { margin: -4px 0 0; text-align: center; color: var(--muted); font-size: 13px; }
 .rec { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .mic {
   flex: none; width: 88px; height: 88px; border-radius: 50%; border: 0; cursor: pointer;
@@ -144,20 +146,17 @@ h1 { font-family: var(--font-num); font-weight: 600; font-size: 34px; line-heigh
 
   <section class="panel" aria-label="Quelle">
     <div class="inputs">
-      <div class="rec">
-        <button id="mic" class="mic" type="button" aria-label="Halten zum Aufnehmen, Loslassen wertet aus">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
-        </button>
-        <div class="rec-text">
-          <strong id="micLabel">Halten zum Aufnehmen</strong>
-          <span id="micHint">Loslassen wertet sofort aus</span>
-        </div>
+      <div class="inputs-row">
+        <label class="filebtn" for="file">Video oder Audio wählen
+          <input id="file" type="file" accept="audio/*,video/*">
+        </label>
+        <label class="temp" for="temp">Lufttemperatur <input id="temp" type="number" value="20" min="-30" max="50" step="1" inputmode="decimal"> °C</label>
       </div>
-      <span class="sep">oder</span>
-      <label class="filebtn" for="file">Video oder Audio wählen
-        <input id="file" type="file" accept="audio/*,video/*">
-      </label>
-      <label class="temp" for="temp">Lufttemperatur <input id="temp" type="number" value="20" min="-30" max="50" step="1" inputmode="decimal"> °C</label>
+      <button id="mic" class="micbar" type="button" aria-label="Halten zum Aufnehmen, Loslassen wertet aus">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        <span id="micLabel">Halten zum Aufnehmen</span>
+      </button>
+      <p class="mic-hint" id="micHint">Loslassen wertet sofort aus</p>
     </div>
     <div id="micFail" class="fail" hidden>
       <span id="micFailText"></span>
@@ -513,7 +512,7 @@ h1 { font-family: var(--font-num); font-weight: 600; font-size: 34px; line-heigh
     };
     recorder.start(100); recStart = performance.now(); setMicUI(true);
     var tm = document.createElement("span"); tm.className = "timer";
-    timerId = setInterval(function () { var s = (performance.now() - recStart) / 1000; $("micHint").textContent = "Loslassen wertet aus · " + fmt(s, 1) + " s"; $("barLabel").textContent = "Aufnahme läuft · " + fmt(s, 1) + " s"; }, 100);
+    timerId = setInterval(function () { var s = (performance.now() - recStart) / 1000; $("micHint").textContent = "Loslassen wertet aus · " + fmt(s, 1) + " s"; $("barLabel").textContent = $("micLabel").textContent = "Aufnahme läuft · " + fmt(s, 1) + " s"; }, 100);
   }
   function stopRec() { holding = false; if (recorder && recorder.state === "recording") recorder.stop(); }
   mics.forEach(function (m) {
